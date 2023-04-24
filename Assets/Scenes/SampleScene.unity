@@ -152,13 +152,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c0e5d36a391629b4693f8604727721b3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _columns: 4
-  _rows: 6
   _fieldCellParent: {fileID: 1108451658}
-  _gameTilesParent: {fileID: 262722893}
-  _gameTileFireOriginPrefab: {fileID: 1292682569223882591, guid: 8e5560c65711d5c40a98b132a4e410cd, type: 3}
-  _gameTileWaterOriginPrefab: {fileID: 1292682569223882591, guid: 335bd08ad190720429bd2c0b53942db2, type: 3}
+  _fieldCellContainer: {fileID: 193275480}
   _fieldCellOriginPrefab: {fileID: 111795328261241283, guid: 7b6167f1545e96c418fddb4383c9552e, type: 3}
+  _gameTileOriginPrefab: {fileID: 1292682569223882591, guid: 8e5560c65711d5c40a98b132a4e410cd, type: 3}
+  _gameTilesPool: {fileID: 262722894}
 --- !u!4 &53806677
 Transform:
   m_ObjectHideFlags: 0
@@ -172,9 +170,41 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1108451658}
+  - {fileID: 193275480}
   - {fileID: 262722893}
   m_Father: {fileID: 0}
   m_RootOrder: 2
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &193275479
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 193275480}
+  m_Layer: 0
+  m_Name: FiledCellsContainer
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &193275480
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 193275479}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 53806677}
+  m_RootOrder: 1
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &252535129
 GameObject:
@@ -269,8 +299,9 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 262722893}
+  - component: {fileID: 262722894}
   m_Layer: 0
-  m_Name: GameTilesParent
+  m_Name: GameTilesPool
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -289,8 +320,23 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 53806677}
-  m_RootOrder: 1
+  m_RootOrder: 2
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &262722894
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 262722892}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fdad3b54bd0f0df4491c80eaeb53eebe, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _countSpawnTiles: 20
+  _waterGameTilePrefab: {fileID: 1292682569223882591, guid: 335bd08ad190720429bd2c0b53942db2, type: 3}
+  _fireGameTilePrefab: {fileID: 1292682569223882591, guid: 8e5560c65711d5c40a98b132a4e410cd, type: 3}
 --- !u!1 &519420028
 GameObject:
   m_ObjectHideFlags: 0

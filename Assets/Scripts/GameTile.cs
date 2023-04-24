@@ -7,12 +7,11 @@ public class GameTile : MonoBehaviour
 {
     [SerializeField] private SpriteRenderer _tileView;
     [SerializeField] private InputSwipe _inputSwipe;
-    
-    private FieldController.TileType _currentType;
+    [SerializeField] private FieldController.TileType _tileType;
 
     public float SizeX => _tileView.bounds.size.x;
     public float SizeY => _tileView.bounds.size.y;
-    public FieldController.TileType TileType => _currentType;
+    public FieldController.TileType TileType => _tileType;
     public event Action<GameTile, SwipeDirection> OnTileSwiped;
 
     private void Awake()
@@ -23,11 +22,6 @@ public class GameTile : MonoBehaviour
     private void OnDestroy()
     {
         _inputSwipe.Swiped -= OnSwipeDetected;
-    }
-
-    public void Init(FieldController.TileType type)
-    {
-        _currentType = type;
     }
 
     public void MoveToFieldCell(FieldCell cell)

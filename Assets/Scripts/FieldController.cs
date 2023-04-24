@@ -1,6 +1,10 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using Cysharp.Threading.Tasks;
+using Newtonsoft.Json;
 using Unity.VisualScripting;
 using UnityEngine;
 using Random = UnityEngine.Random;
@@ -8,98 +12,191 @@ using Sequence = DG.Tweening.Sequence;
 
 public class FieldController : MonoBehaviour
 {
-    [SerializeField] private int _columns;
-    [SerializeField] private int _rows;
     [SerializeField] private Transform _fieldCellParent;
-    [SerializeField] private Transform _gameTilesParent;
-    [SerializeField] private GameTile _gameTileFireOriginPrefab;
-    [SerializeField] private GameTile _gameTileWaterOriginPrefab;
+    [SerializeField] private Transform _fieldCellContainer;
     [SerializeField] private FieldCell _fieldCellOriginPrefab;
+    [SerializeField] private GameTile _gameTileOriginPrefab;
+    [SerializeField] private GameTilesPool _gameTilesPool;
 
+    private Queue<FieldCell> _fieldCellsContainer = new Queue<FieldCell>();
+    
     private FieldCell[,] _field;
     private Sequence _swipeSequence;
 
     private HashSet<FieldCell> _mainHor;
     private HashSet<FieldCell> _mainVert;
 
+    private List<FieldData> _fieldDatas;
+    private FieldData _currentLevelData;
+
+    private bool _isSwipeEnable = false;
+
     public enum TileType
     {
-        Empty,
-        Water,
-        Fire,
+        Empty = 0,
+        Water = 1,
+        Fire = 2,
     }
 
     private void Awake()
     {
-        _mainHor = new HashSet<FieldCell>();
-        _mainVert = new HashSet<FieldCell>();
-        BuildField();
+        InitGame().Forget();
     }
 
-    private void BuildField()
+    private async UniTask InitGame()
     {
-        float startX = -(_columns - 1);
+        await _gameTilesPool.Init();
+        
+        _mainHor = new HashSet<FieldCell>();
+        _mainVert = new HashSet<FieldCell>();
+        
+        for (int i = 0; i < 42; i++)
+        {
+            AddFieldCellToContainer();
+            await UniTask.DelayFrame(1);
+        }
+
+        string text = File.ReadAllText("Assets/Resources/levels_data.json");
+        _fieldDatas = JsonConvert.DeserializeObject<List<FieldData>>(text);
+        
+        LoadLevel(2);
+    }
+
+    private void LoadLevel(int levelNum)
+    {
+        DeactivateField();
+        _currentLevelData = _fieldDatas.FirstOrDefault(l => l.fieldNumber == levelNum);
+        if (_currentLevelData == null)
+        {
+            Debug.LogError($"Level {levelNum} does not exist.");
+            return;
+        }
+        
+        BuildField(_currentLevelData.tiles);
+        _isSwipeEnable = true;
+    }
+
+    private void BuildField(int[,] tiles)
+    {
+        int rows = tiles.GetLength(0);
+        int columns = tiles.GetLength(1);
+        float startX = -(columns - 1);
         float startY = -7;
-        float spaceX = _gameTileFireOriginPrefab.SizeX;
-        float spaceY = _gameTileFireOriginPrefab.SizeX;
-        float zValue = -0f;
+        float spaceX = _gameTileOriginPrefab.SizeX;
+        float spaceY = _gameTileOriginPrefab.SizeX;
+        float zValue = 0f;
 
-        _field = new FieldCell[_rows, _columns + 2];
+        _field = new FieldCell[rows, columns + 2];
 
-        for (int i = 0; i < _rows; i++)
+        for (int row = 0; row < rows; row++)
         {
             var newRowStartX = startX;
             
-            for(int j = 0; j < _columns + 2; j++)
+            for(int column = 0; column < columns + 2; column++)
             {
                 zValue -= 0.1f;
-                if (j == 0)
+                if (column == 0)
                 {
                     var position = new Vector3(newRowStartX - 2, startY, 0);
-                    var newFieldCell = SpawnFieldCell(position, i, j, zValue);
-                    _field[i, j] = newFieldCell;
+                    var newFieldCell = SpawnFieldCell(position, row, column, zValue);
+                    _field[row, column] = newFieldCell;
                     continue;
                 }
 
-                if (j == (_columns + 1))
+                if (column == (columns + 1))
                 {
                     var position = new Vector3(newRowStartX, startY, 0);
-                    var newFieldCell = SpawnFieldCell(position, i, j, zValue);
-                    _field[i, j] = newFieldCell;
+                    var newFieldCell = SpawnFieldCell(position, row, column, zValue);
+                    _field[row, column] = newFieldCell;
                     continue;
                 }
 
-                var random = Random.value > 0.5f;
-                var spawnedObj = random ? _gameTileFireOriginPrefab : _gameTileWaterOriginPrefab;
-                GameTile newTile = Instantiate(spawnedObj, _gameTilesParent);
-                newTile.Init(random ? TileType.Fire : TileType.Water);
-                newTile.name += $"_R_{i}_C_{j}";
-                newTile.OnTileSwiped += OnTileWasSwiped;
+                var cellPosition = new Vector3(newRowStartX, startY, 0);
+                var newCell = SpawnFieldCell(cellPosition, row, column, zValue);
+                newCell.SetInnerTileToCellCenter();
+                _field[row, column] = newCell;
                 
-                var positionF = new Vector3(newRowStartX, startY, 0);
-                var newFieldCellF = SpawnFieldCell(positionF, i, j, zValue);
-                newFieldCellF.SetTile(newTile);
-                newFieldCellF.SetInnerTileToCellCenter();
-                _field[i, j] = newFieldCellF;
-
+                var type = (TileType) tiles[row, column - 1];
+                if (type != TileType.Empty)
+                {
+                    var newTile = _gameTilesPool.GetTileByType(type);
+                    newTile.OnTileSwiped += OnTileWasSwiped;
+                    newCell.SetTile(newTile);
+                    newCell.SetInnerTileToCellCenter();
+                }
+                
                 newRowStartX += spaceX - 1;
             }
             
             startY += spaceY - 1;
         }
     }
-    
+
     private FieldCell SpawnFieldCell(Vector3 position, int row, int column, float zValue)
     {
-        FieldCell fieldCell = Instantiate(_fieldCellOriginPrefab, _fieldCellParent);
-        fieldCell.name += $"_R_{row}_C_{column}";
+        if (_fieldCellsContainer.Count == 0)
+        {
+            AddFieldCellToContainer();
+        }
+
+        FieldCell fieldCell = _fieldCellsContainer.Dequeue();
+        fieldCell.transform.SetParent(_fieldCellParent);
+        fieldCell.gameObject.SetActive(true);
+        fieldCell.name = $"Field_R_{row}_C_{column}";
         fieldCell.Init(row, column, zValue);
         fieldCell.transform.localPosition = position;
         return fieldCell;
     }
 
+    private void DeactivateField()
+    {
+        if (_field == null)
+        {
+            return;
+        }
+        
+        foreach (var fieldCell in _field)
+        {
+            DeactivateTileInCell(fieldCell);
+            
+            fieldCell.transform.SetParent(_fieldCellContainer);
+            fieldCell.gameObject.SetActive(false);
+            fieldCell.transform.localPosition = Vector3.zero;
+            _fieldCellsContainer.Enqueue(fieldCell);
+        }
+
+        _field = null;
+    }
+
+    private void AddFieldCellToContainer()
+    {
+        var fieldCell = Instantiate(_fieldCellOriginPrefab, _fieldCellContainer);
+        fieldCell.gameObject.SetActive(false);
+        _fieldCellsContainer.Enqueue(fieldCell);
+    }
+
+    private void DeactivateTileInCell(FieldCell cell)
+    {
+        var tile = cell.TileOnCell;
+
+        if (tile == null)
+        {
+            Debug.Log($"{cell.Row} {cell.Column}");
+            return;
+        }
+
+        tile.OnTileSwiped -= OnTileWasSwiped;
+        _gameTilesPool.ReturnToPool(tile);
+        cell.SetTile(null);
+    }
+
     private void OnTileWasSwiped(GameTile tile, SwipeDirection direction)
     {
+        if (!_isSwipeEnable)
+        {
+            return;
+        }
+        
         FieldCell cellOfTile = null;
 
         foreach (var fieldCell in _field)
@@ -134,8 +231,8 @@ public class FieldController : MonoBehaviour
                     throw new ArgumentOutOfRangeException(nameof(direction), direction, null);
             }
 
-            if ((nextCellRow < 0 || nextCellRow > _field.GetLength(1) - 1) ||
-                (nextCellColumn < 0 || nextCellColumn > _field.GetLength(0) - 1))
+            if ((nextCellRow < 0 || nextCellRow > _field.GetLength(0) - 1) ||
+                (nextCellColumn < 0 || nextCellColumn > _field.GetLength(1) - 1))
             {
                 return;
             }
@@ -147,7 +244,6 @@ public class FieldController : MonoBehaviour
             
             var newCell = _field[nextCellRow, nextCellColumn];
             SwipeTilesAsync(newCell, cellOfTile).Forget();
-            
         }
     }
 
@@ -159,24 +255,20 @@ public class FieldController : MonoBehaviour
         await UniTask.Delay(500);
         CheckFallTiles();
         await UniTask.Delay(500);
-        CheckMatch_N();
+        CheckMatch();
         
         foreach (var fieldCell in _mainHor)
         {
-            fieldCell.transform.localScale = Vector3.one * 0.6f;
-            fieldCell.SetTile(null);
+            DeactivateTileInCell(fieldCell);
         }
         
         foreach (var fieldCell in _mainVert)
         {
-            fieldCell.transform.localScale = Vector3.one * 0.6f;
-            fieldCell.SetTile(null);
+            DeactivateTileInCell(fieldCell);
         }
-        
+
         _mainHor.Clear();
         _mainVert.Clear();
-
-        Debug.Log("Fall ended");
     }
 
     private void SwapTileBetweenCell(FieldCell cellA, FieldCell cellB)
@@ -195,7 +287,7 @@ public class FieldController : MonoBehaviour
                 var currentCell = _field[row, column];
                 if (currentCell.TileOnCell == null && currentCell.Row < _field.GetLength(0) - 1)
                 {
-                    for (int rowUp = currentCell.Row; rowUp < _field.GetLength(1); rowUp++)
+                    for (int rowUp = currentCell.Row; rowUp < _field.GetLength(0); rowUp++)
                     {
                         var cell = _field[rowUp, column];
                         if (cell.TileOnCell != null)
@@ -210,7 +302,7 @@ public class FieldController : MonoBehaviour
         }
     }
 
-    private void CheckMatch_N()
+    private void CheckMatch()
     {
         List<FieldCell> horizontal = new List<FieldCell>();
         List<FieldCell> vertical = new List<FieldCell>();
@@ -262,12 +354,19 @@ public class FieldController : MonoBehaviour
                 
                 vertical.Add(currentFieldCell);
 
-                for (int rowUp = currentFieldCell.Row + 1; rowUp < _field.GetLength(1); rowUp++)
+                for (int rowUp = currentFieldCell.Row + 1; rowUp < _field.GetLength(0); rowUp++)
                 {
                     var upColCell = _field[rowUp, j];
 
                     if (upColCell.IsEmptyCell)
                     {
+                        if (vertical.Count > 2)
+                        {
+                            _mainVert.AddRange(vertical);
+                        }
+                
+                        vertical.Clear();
+                        
                         break;
                     }
 
@@ -288,6 +387,8 @@ public class FieldController : MonoBehaviour
                 
                 vertical.Clear();
             }
+            
+            horizontal.Clear();
         }
     }
 }

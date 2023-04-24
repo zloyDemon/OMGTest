@@ -101,6 +101,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _tileView: {fileID: 4228504395303605400}
   _inputSwipe: {fileID: 2778652697567529439}
+  _tileType: 2
 --- !u!61 &7104027004350647444
 BoxCollider2D:
   m_ObjectHideFlags: 0
