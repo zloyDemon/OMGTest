@@ -12,6 +12,7 @@ public class GameTile : MonoBehaviour
 
     public float SizeX => _tileView.bounds.size.x;
     public float SizeY => _tileView.bounds.size.y;
+    public FieldController.TileType TileType => _currentType;
     public event Action<GameTile, SwipeDirection> OnTileSwiped;
 
     private void Awake()
@@ -24,10 +25,9 @@ public class GameTile : MonoBehaviour
         _inputSwipe.Swiped -= OnSwipeDetected;
     }
 
-    public void Init(FieldController.TileType type, Sprite tileSprite)
+    public void Init(FieldController.TileType type)
     {
         _currentType = type;
-        _tileView.sprite = tileSprite;
     }
 
     public void MoveToFieldCell(FieldCell cell)
