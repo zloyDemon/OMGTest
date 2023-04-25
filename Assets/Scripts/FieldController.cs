@@ -1,15 +1,12 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Threading;
 using Cysharp.Threading.Tasks;
 using ModestTree;
 using Newtonsoft.Json;
 using Unity.VisualScripting;
 using UnityEngine;
-using Random = UnityEngine.Random;
 using Sequence = DG.Tweening.Sequence;
 
 public class FieldController : MonoBehaviour
@@ -260,33 +257,28 @@ public class FieldController : MonoBehaviour
     {
         IsInputEnable = false;
         
+        bool isEmptyMatchedCells = false;
+        
         SwapTileBetweenCell(cellA, cellB);
         cellA.MoveToCell();
         cellB.MoveToCell();
-        await UniTask.Delay(500);
+        await UniTask.Delay(Constants.SwapTilesMilliseconds);
         CheckFallTiles();
-        await UniTask.Delay(500);
+        await UniTask.Delay(Constants.FallTilesMilliseconds);
         
-        bool isDone = false;
-
-        while (!isDone)
+        var matchedCellsSet = CheckMatch();
+        isEmptyMatchedCells = matchedCellsSet.IsEmpty();
+        
+        while (!isEmptyMatchedCells)
         {
-            var set = CheckMatch();
-            isDone = set.IsEmpty();
-
-            if (CheckFallTiles())
-            {
-                await UniTask.Delay(Constants.FallTilesMilliseconds);
-            }
-
-            foreach (var fieldCell in set)
+            foreach (var fieldCell in matchedCellsSet)
             {
                 fieldCell.TileOnCell.SetAliveState(false);
             }
-
+            
             await UniTask.Delay(Constants.WaitAfterDestroyAnimationMilliseconds);
             
-            foreach (var fieldCell in set)
+            foreach (var fieldCell in matchedCellsSet)
             {
                 DeactivateTileInCell(fieldCell);
             }
@@ -295,10 +287,14 @@ public class FieldController : MonoBehaviour
             {
                 await UniTask.Delay(Constants.FallTilesMilliseconds);
             }
+
+            matchedCellsSet = CheckMatch();
+            isEmptyMatchedCells = matchedCellsSet.IsEmpty();
         }
 
         if (IsEndGame())
         {
+            await UniTask.Delay(Constants.NextLevelTransitionMilliseconds);
             NextLevel();
         }
 
@@ -358,7 +354,7 @@ public class FieldController : MonoBehaviour
                 if (currentFieldCell.IsEmptyCell)
                 {
                     currentType = TileType.Empty;
-                    AddRangeToMain(horizontal, fieldCells);
+                    AddSideRangeToMainSet(horizontal, fieldCells);
                     continue;
                 }
 
@@ -369,7 +365,7 @@ public class FieldController : MonoBehaviour
 
                 if (currentFieldCell.TileOnCell.TileType != currentType)
                 {
-                    AddRangeToMain(horizontal, fieldCells);
+                    AddSideRangeToMainSet(horizontal, fieldCells);
                     currentType = currentFieldCell.TileOnCell.TileType;
                 }
 
@@ -388,7 +384,7 @@ public class FieldController : MonoBehaviour
 
                     if (upColCell.IsEmptyCell)
                     {
-                        AddRangeToMain(vertical, fieldCells);
+                        AddSideRangeToMainSet(vertical, fieldCells);
                         break;
                     }
 
@@ -402,7 +398,7 @@ public class FieldController : MonoBehaviour
                     }
                 }
 
-                AddRangeToMain(vertical, fieldCells);
+                AddSideRangeToMainSet(vertical, fieldCells);
             }
             
             horizontal.Clear();
@@ -411,7 +407,7 @@ public class FieldController : MonoBehaviour
         return fieldCells;
     }
 
-    private void AddRangeToMain(List<FieldCell> cells, HashSet<FieldCell> cellsSet)
+    private void AddSideRangeToMainSet(List<FieldCell> cells, HashSet<FieldCell> cellsSet)
     {
         if (cells.Count > Constants.FieldsCountForMatch)
         {

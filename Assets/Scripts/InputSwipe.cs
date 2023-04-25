@@ -41,8 +41,7 @@ public class InputSwipe : MonoBehaviour
         var direction = GetSwipeDirection(angleValue);
         Swiped?.Invoke(direction);
     }
-
-    // Todo
+    
     private SwipeDirection GetSwipeDirection(float angleValue)
     {
         SwipeDirection result = SwipeDirection.Up;
@@ -64,7 +63,6 @@ public class InputSwipe : MonoBehaviour
             result = SwipeDirection.Left;
         }
         
-
         return result;
     }
 }
