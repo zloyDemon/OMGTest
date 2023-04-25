@@ -6,7 +6,7 @@ using Cysharp.Threading.Tasks;
 using Unity.VisualScripting;
 using UnityEngine;
 
-public class GameTilesPool : MonoBehaviour
+public class GameTilesManager : MonoBehaviour
 {
     [SerializeField] private int _countSpawnTiles = 20;
     [SerializeField] private GameTile _waterGameTilePrefab;

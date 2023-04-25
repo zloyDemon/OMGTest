@@ -3,7 +3,9 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using Cysharp.Threading.Tasks;
+using ModestTree;
 using Newtonsoft.Json;
 using Unity.VisualScripting;
 using UnityEngine;
@@ -16,20 +18,17 @@ public class FieldController : MonoBehaviour
     [SerializeField] private Transform _fieldCellContainer;
     [SerializeField] private FieldCell _fieldCellOriginPrefab;
     [SerializeField] private GameTile _gameTileOriginPrefab;
-    [SerializeField] private GameTilesPool _gameTilesPool;
+    [SerializeField] private GameTilesManager _gameTilesManager;
 
     private Queue<FieldCell> _fieldCellsContainer = new Queue<FieldCell>();
     
     private FieldCell[,] _field;
     private Sequence _swipeSequence;
 
-    private HashSet<FieldCell> _mainHor;
-    private HashSet<FieldCell> _mainVert;
-
     private List<FieldData> _fieldDatas;
     private FieldData _currentLevelData;
 
-    private bool _isSwipeEnable = false;
+    public bool IsInputEnable { get; private set; } = false;
 
     public enum TileType
     {
@@ -45,25 +44,24 @@ public class FieldController : MonoBehaviour
 
     private async UniTask InitGame()
     {
-        await _gameTilesPool.Init();
-        
-        _mainHor = new HashSet<FieldCell>();
-        _mainVert = new HashSet<FieldCell>();
-        
-        for (int i = 0; i < 42; i++)
+        await _gameTilesManager.Init();
+
+        for (int i = 0; i < Constants.StartFieldCellsCount; i++)
         {
             AddFieldCellToContainer();
             await UniTask.DelayFrame(1);
         }
 
-        string text = File.ReadAllText("Assets/Resources/levels_data.json");
+        string text = await File.ReadAllTextAsync(Constants.FilePath);
         _fieldDatas = JsonConvert.DeserializeObject<List<FieldData>>(text);
-        
-        LoadLevel(2);
+
+        LoadLevel(_fieldDatas.First().fieldNumber);
     }
 
     private void LoadLevel(int levelNum)
     {
+        IsInputEnable = false;
+        
         DeactivateField();
         _currentLevelData = _fieldDatas.FirstOrDefault(l => l.fieldNumber == levelNum);
         if (_currentLevelData == null)
@@ -73,7 +71,19 @@ public class FieldController : MonoBehaviour
         }
         
         BuildField(_currentLevelData.tiles);
-        _isSwipeEnable = true;
+        IsInputEnable = true;
+    }
+    
+    public void NextLevel()
+    {
+        int currentLevel = _currentLevelData.fieldNumber;
+        currentLevel++;
+        if (currentLevel > _fieldDatas.Count - 1)
+        {
+            currentLevel = 1;
+        }
+        
+        LoadLevel(currentLevel);
     }
 
     private void BuildField(int[,] tiles)
@@ -119,8 +129,9 @@ public class FieldController : MonoBehaviour
                 var type = (TileType) tiles[row, column - 1];
                 if (type != TileType.Empty)
                 {
-                    var newTile = _gameTilesPool.GetTileByType(type);
+                    var newTile = _gameTilesManager.GetTileByType(type);
                     newTile.OnTileSwiped += OnTileWasSwiped;
+                    newTile.SetAliveState(true);
                     newCell.SetTile(newTile);
                     newCell.SetInnerTileToCellCenter();
                 }
@@ -179,20 +190,18 @@ public class FieldController : MonoBehaviour
     {
         var tile = cell.TileOnCell;
 
-        if (tile == null)
+        if (tile != null)
         {
-            Debug.Log($"{cell.Row} {cell.Column}");
-            return;
+            tile.OnTileSwiped -= OnTileWasSwiped;
+            _gameTilesManager.ReturnToPool(tile);
         }
 
-        tile.OnTileSwiped -= OnTileWasSwiped;
-        _gameTilesPool.ReturnToPool(tile);
         cell.SetTile(null);
     }
 
     private void OnTileWasSwiped(GameTile tile, SwipeDirection direction)
     {
-        if (!_isSwipeEnable)
+        if (!IsInputEnable)
         {
             return;
         }
@@ -249,26 +258,51 @@ public class FieldController : MonoBehaviour
 
     private async UniTask SwipeTilesAsync(FieldCell cellA, FieldCell cellB)
     {
+        IsInputEnable = false;
+        
         SwapTileBetweenCell(cellA, cellB);
         cellA.MoveToCell();
         cellB.MoveToCell();
         await UniTask.Delay(500);
         CheckFallTiles();
         await UniTask.Delay(500);
-        CheckMatch();
         
-        foreach (var fieldCell in _mainHor)
+        bool isDone = false;
+
+        while (!isDone)
         {
-            DeactivateTileInCell(fieldCell);
-        }
-        
-        foreach (var fieldCell in _mainVert)
-        {
-            DeactivateTileInCell(fieldCell);
+            var set = CheckMatch();
+            isDone = set.IsEmpty();
+
+            if (CheckFallTiles())
+            {
+                await UniTask.Delay(Constants.FallTilesMilliseconds);
+            }
+
+            foreach (var fieldCell in set)
+            {
+                fieldCell.TileOnCell.SetAliveState(false);
+            }
+
+            await UniTask.Delay(Constants.WaitAfterDestroyAnimationMilliseconds);
+            
+            foreach (var fieldCell in set)
+            {
+                DeactivateTileInCell(fieldCell);
+            }
+            
+            if (CheckFallTiles())
+            {
+                await UniTask.Delay(Constants.FallTilesMilliseconds);
+            }
         }
 
-        _mainHor.Clear();
-        _mainVert.Clear();
+        if (IsEndGame())
+        {
+            NextLevel();
+        }
+
+        IsInputEnable = true;
     }
 
     private void SwapTileBetweenCell(FieldCell cellA, FieldCell cellB)
@@ -278,8 +312,9 @@ public class FieldController : MonoBehaviour
         cellA.SetTile(bufForSwap);
     }
 
-    private void CheckFallTiles()
+    private bool CheckFallTiles()
     {
+        bool wasFall = false;
         for (int column = 0; column < _field.GetLength(1); column++)
         {
             for (int row = 0; row < _field.GetLength(0); row++)
@@ -294,18 +329,23 @@ public class FieldController : MonoBehaviour
                         {
                             SwapTileBetweenCell(currentCell, cell);
                             currentCell.MoveToCell();
+                            wasFall = true;
                             break;
                         }
                     }
                 }
             }
         }
+
+        return wasFall;
     }
 
-    private void CheckMatch()
+    private HashSet<FieldCell> CheckMatch()
     {
         List<FieldCell> horizontal = new List<FieldCell>();
         List<FieldCell> vertical = new List<FieldCell>();
+
+        HashSet<FieldCell> fieldCells = new HashSet<FieldCell>();
 
         TileType currentType = TileType.Empty;
 
@@ -318,14 +358,7 @@ public class FieldController : MonoBehaviour
                 if (currentFieldCell.IsEmptyCell)
                 {
                     currentType = TileType.Empty;
-                    
-                    if (horizontal.Count > 2)
-                    {
-                        _mainHor.AddRange(horizontal);
-                    }
-                    
-                    horizontal.Clear();
-                    
+                    AddRangeToMain(horizontal, fieldCells);
                     continue;
                 }
 
@@ -336,18 +369,13 @@ public class FieldController : MonoBehaviour
 
                 if (currentFieldCell.TileOnCell.TileType != currentType)
                 {
-                    if (horizontal.Count > 2)
-                    {
-                        _mainHor.AddRange(horizontal);
-                    }
-                    
-                    horizontal.Clear();
+                    AddRangeToMain(horizontal, fieldCells);
                     currentType = currentFieldCell.TileOnCell.TileType;
                 }
-                
+
                 horizontal.Add(currentFieldCell);
                 
-                if (_mainVert.Contains(currentFieldCell))
+                if (fieldCells.Contains(currentFieldCell))
                 {
                     continue;
                 }
@@ -360,13 +388,7 @@ public class FieldController : MonoBehaviour
 
                     if (upColCell.IsEmptyCell)
                     {
-                        if (vertical.Count > 2)
-                        {
-                            _mainVert.AddRange(vertical);
-                        }
-                
-                        vertical.Clear();
-                        
+                        AddRangeToMain(vertical, fieldCells);
                         break;
                     }
 
@@ -380,15 +402,37 @@ public class FieldController : MonoBehaviour
                     }
                 }
 
-                if (vertical.Count > 2)
-                {
-                    _mainVert.AddRange(vertical);
-                }
-                
-                vertical.Clear();
+                AddRangeToMain(vertical, fieldCells);
             }
             
             horizontal.Clear();
         }
+
+        return fieldCells;
+    }
+
+    private void AddRangeToMain(List<FieldCell> cells, HashSet<FieldCell> cellsSet)
+    {
+        if (cells.Count > Constants.FieldsCountForMatch)
+        {
+            cellsSet.AddRange(cells);
+        }
+        
+        cells.Clear();
+    }
+
+    private bool IsEndGame()
+    {
+        bool isWin = true;
+        foreach (var fieldCell in _field)
+        {
+            if (fieldCell.TileOnCell != null)
+            {
+                isWin = false;
+                break;
+            }
+        }
+
+        return isWin;
     }
 }

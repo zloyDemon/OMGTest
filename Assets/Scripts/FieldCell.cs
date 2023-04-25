@@ -5,7 +5,7 @@ using Zenject;
 
 public class FieldCell : MonoBehaviour
 {
-    private const float MoveDuration = 0.3f;
+    private const float MoveDuration = 0.5f;
     
     private int _row;
     private int _column;
@@ -42,13 +42,14 @@ public class FieldCell : MonoBehaviour
             return;
         }
 
+        KillAndNullTween();
+
         _moveToCellTween = _tileOnCell.transform.DOLocalMove(new Vector3(0, 0), MoveDuration).OnComplete(() =>
         {
             var position = _tileOnCell.transform.position;
             position.z = _zValue;
             _tileOnCell.transform.position = position;
         });
-        
     }
 
     public void SetInnerTileToCellCenter()
@@ -61,9 +62,25 @@ public class FieldCell : MonoBehaviour
         _tileOnCell.transform.localPosition = new Vector3(0, 0, _zValue);
     }
 
+    private void OnDisable()
+    {
+        KillAndNullTween();
+    }
+
+    private void KillAndNullTween()
+    {
+        if (_moveToCellTween != null)
+        {
+            _moveToCellTween.Kill();
+            _moveToCellTween = null;
+        }
+    }
+
     private void OnDrawGizmos()
     {
         Gizmos.color = Color.cyan;
         Gizmos.DrawWireSphere(transform.position, 0.5f);
     }
+
+    
 }

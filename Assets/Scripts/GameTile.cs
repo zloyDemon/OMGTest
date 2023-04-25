@@ -5,9 +5,12 @@ using UnityEngine;
 
 public class GameTile : MonoBehaviour
 {
+    private readonly int IsAliveAnimationHash = Animator.StringToHash("IsAlive");
+    
     [SerializeField] private SpriteRenderer _tileView;
     [SerializeField] private InputSwipe _inputSwipe;
     [SerializeField] private FieldController.TileType _tileType;
+    [SerializeField] private Animator _animator;
 
     public float SizeX => _tileView.bounds.size.x;
     public float SizeY => _tileView.bounds.size.y;
@@ -24,11 +27,11 @@ public class GameTile : MonoBehaviour
         _inputSwipe.Swiped -= OnSwipeDetected;
     }
 
-    public void MoveToFieldCell(FieldCell cell)
+    public void SetAliveState(bool isAlive)
     {
-        transform.position = cell.transform.position;
+        _animator.SetBool(IsAliveAnimationHash, isAlive);
     }
-    
+
     private void OnSwipeDetected(SwipeDirection direction)
     {
         OnTileSwiped?.Invoke(this, direction);

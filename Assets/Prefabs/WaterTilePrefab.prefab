@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 1292682569223882591}
   - component: {fileID: 7104027004350647444}
   - component: {fileID: 2778652697567529439}
+  - component: {fileID: 7239580850921850325}
   m_Layer: 0
   m_Name: WaterTilePrefab
   m_TagString: Untagged
@@ -102,6 +103,7 @@ MonoBehaviour:
   _tileView: {fileID: 4228504395303605400}
   _inputSwipe: {fileID: 2778652697567529439}
   _tileType: 1
+  _animator: {fileID: 7239580850921850325}
 --- !u!61 &7104027004350647444
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -140,3 +142,23 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 57a6fa1e437db2e45a7b96cf264c6845, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!95 &7239580850921850325
+Animator:
+  serializedVersion: 4
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5386188788434771930}
+  m_Enabled: 1
+  m_Avatar: {fileID: 0}
+  m_Controller: {fileID: 9100000, guid: 81d1d801e45aff5448ad3a2c6b70796d, type: 2}
+  m_CullingMode: 0
+  m_UpdateMode: 0
+  m_ApplyRootMotion: 0
+  m_LinearVelocityBlending: 0
+  m_StabilizeFeet: 0
+  m_WarningMessage: 
+  m_HasTransformHierarchy: 1
+  m_AllowConstantClipSamplingOptimization: 1
+  m_KeepAnimatorControllerStateOnDisable: 0
